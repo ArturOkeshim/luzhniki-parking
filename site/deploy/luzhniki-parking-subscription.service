@@ -1,0 +1,30 @@
+[Unit]
+Description=Luzhniki subscription service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/luzhniki-parking-subscription/app
+Environment=NODE_ENV=production
+Environment=PORT=3001
+Environment=WRANGLER_WRITE_LOGS=false
+Environment=WRANGLER_LOG_PATH=/opt/luzhniki-parking-subscription/app/.wrangler/runtime.log
+Environment=MINIFLARE_REGISTRY_PATH=/opt/luzhniki-parking-subscription/app/.wrangler/registry
+EnvironmentFile=/opt/luzhniki-parking-subscription/app/.env
+ExecStartPre=/usr/bin/node /opt/luzhniki-parking-subscription/app/deploy/preflight.mjs
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3001
+Restart=always
+RestartSec=5
+TimeoutStartSec=120
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/luzhniki-parking-subscription/app/.wrangler
+
+[Install]
+WantedBy=multi-user.target
