@@ -69,7 +69,10 @@ export async function bitrixRestRequest<T>(
 function checkedPaymentUrl(value: unknown): string {
   if (typeof value !== "string" || !value.trim()) return "";
   const url = new URL(value);
-  if (url.protocol !== "https:" || url.hostname.toLowerCase() !== bitrixConfig.portalHost) {
+  if (
+    url.protocol !== "https:" ||
+    url.hostname.toLowerCase() !== bitrixConfig.paymentPublicHost
+  ) {
     throw new Error("Bitrix24 вернул некорректную ссылку на оплату");
   }
   return url.toString();
@@ -83,7 +86,7 @@ export async function getPublicPaymentUrl(paymentId: number): Promise<string> {
     const result = await bitrixRestRequest<{
       payment?: { url?: unknown; shortUrl?: unknown };
     }>("salescenter.payment.getPublicUrl", { id: paymentId });
-    return checkedPaymentUrl(result?.payment?.shortUrl) || checkedPaymentUrl(result?.payment?.url);
+    return checkedPaymentUrl(result?.payment?.url) || checkedPaymentUrl(result?.payment?.shortUrl);
   } catch {
     return "";
   }

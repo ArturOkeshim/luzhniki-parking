@@ -9,7 +9,9 @@
     "dev": "vinext dev",
     "build": "vinext build",
     "start": "vinext start",
-    "test:dates": "node --experimental-strip-types --test tests/parking-dates.test.mjs"
+    "test:dates": "node --experimental-strip-types --test tests/parking-dates.test.mjs",
+    "test:return": "node --experimental-strip-types --test tests/parking-return.test.mjs",
+    "test": "node --experimental-strip-types --test tests/parking-dates.test.mjs tests/parking-return.test.mjs"
   },
   "dependencies": {
     "next": "16.2.11",

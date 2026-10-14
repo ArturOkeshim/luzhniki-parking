@@ -1,0 +1,8 @@
+PARKING-SUBSCRIPTION-SERVER-V6.9-FULL-FILES-2026-10-14
+Дата: 14.10.2026
+Тип: полный каталог сайта без установщиков
+Целевой каталог: /opt/luzhniki-parking-subscription/app
+Конфигурация с ключами: .env
+Резервная копия конфигурации: SERVER-CONFIG-WITH-KEYS.env
+Штатная страница оплаты: https://pay.luzhniki.ru/oformleniezakaza/
+Автоматические установщики: отсутствуют

@@ -36,6 +36,9 @@ export const bitrixConfig = {
   get portalHost() {
     return runtimeValue("B24_PORTAL_HOST", "crm.luzhniki.ru").toLowerCase();
   },
+  get paymentPublicHost() {
+    return runtimeValue("B24_PAYMENT_PUBLIC_HOST", "pay.luzhniki.ru").toLowerCase();
+  },
   get parkingCategoryId() {
     return Number(runtimeValue("B24_PARKING_CATEGORY_ID", "40"));
   },

@@ -21,6 +21,7 @@ export async function POST(request: NextRequest) {
       paymentId: checkout.paymentId,
       expiresAt: checkout.expiresAt,
     });
+    if (!paymentUrl) return json({ ready: false, expiresAt: checkout.expiresAt }, 202);
     void activateParkingPayment(checkout.dealId, checkout.paymentId, paymentUrl).catch((error) => {
       console.error(
         "PARKING_PAYMENT_ACTIVATION_ERROR",

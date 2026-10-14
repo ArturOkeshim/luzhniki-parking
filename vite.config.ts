@@ -9,6 +9,7 @@ const localBindingConfig = {
       "VIBECODE_API_KEY",
       "B24_WEBHOOK_URL",
       "B24_PORTAL_HOST",
+      "B24_PAYMENT_PUBLIC_HOST",
       "B24_PARKING_CATEGORY_ID",
       "B24_PARKING_DRAFT_STAGE_ID",
       "B24_PARKING_AWAITING_STAGE_ID",

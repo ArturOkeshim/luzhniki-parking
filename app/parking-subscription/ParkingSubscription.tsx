@@ -113,6 +113,8 @@ export default function ParkingSubscription() {
   const [paymentWaiting, setPaymentWaiting] = useState(false);
   const [paymentMessage, setPaymentMessage] = useState("");
   const [paymentError, setPaymentError] = useState(false);
+  const [returnChecking, setReturnChecking] = useState(false);
+  const [returnMessage, setReturnMessage] = useState("");
   const [phone, setPhone] = useState("");
   const [plate, setPlate] = useState("");
   const [foreignPlate, setForeignPlate] = useState(false);
@@ -184,14 +186,75 @@ export default function ParkingSubscription() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("payment") !== "success") return;
-
+    if (params.get("payment") !== "verify") return;
     const returnedDealId = Number(params.get("dealId") ?? 0);
-    if (Number.isInteger(returnedDealId) && returnedDealId > 0) {
-      setDealId(returnedDealId);
+    const returnedPaymentId = Number(params.get("paymentId") ?? 0);
+    const returnedExpires = Number(params.get("exp") ?? 0);
+    const returnedSignature = String(params.get("sig") ?? "").trim().toLowerCase();
+    const validReturn = Number.isInteger(returnedDealId) && returnedDealId > 0
+      && Number.isInteger(returnedPaymentId) && returnedPaymentId > 0
+      && Number.isInteger(returnedExpires) && returnedExpires > 0
+      && /^[a-f0-9]{64}$/u.test(returnedSignature);
+    if (!validReturn) {
+      window.history.replaceState({}, "", "/parking-subscription");
+      setReturnMessage("Оплата не подтверждена. Вы можете повторить оплату.");
+      return;
     }
-    setPaymentMessage("Оплата подтверждена. Сделка переведена в стадию «Оплачено».");
-    setPurchased(true);
+
+    let cancelled = false;
+    let timer = 0;
+    setDealId(returnedDealId);
+    setReturnChecking(true);
+    const verifyReturn = async () => {
+      let lastRequestFailed = false;
+      try {
+        for (let attempt = 0; attempt < 4 && !cancelled; attempt += 1) {
+          if (attempt > 0) {
+            await new Promise<void>((resolve) => {
+              timer = window.setTimeout(resolve, 1500);
+            });
+          }
+          if (cancelled) return;
+          try {
+            const response = await fetch("/api/parking-subscription/return-status", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                dealId: returnedDealId,
+                paymentId: returnedPaymentId,
+                expires: returnedExpires,
+                signature: returnedSignature,
+              }),
+              cache: "no-store",
+            });
+            const payload = (await response.json()) as { paid?: boolean; expired?: boolean };
+            lastRequestFailed = !response.ok;
+            if (cancelled) return;
+            if (response.ok && payload.paid === true) {
+              setPaymentMessage("Оплата подтверждена. Сделка переведена в стадию «Оплачено».");
+              setPurchased(true);
+              return;
+            }
+            if (response.ok && payload.expired === true) break;
+          } catch {
+            lastRequestFailed = true;
+          }
+        }
+        if (!cancelled) {
+          window.history.replaceState({}, "", "/parking-subscription");
+          setReturnMessage(lastRequestFailed
+            ? "Не удалось проверить оплату. Вернитесь к оформлению и попробуйте ещё раз."
+            : "Оплата не подтверждена. Вернитесь к оформлению и попробуйте ещё раз.");
+        }
+      } finally {
+        if (!cancelled) setReturnChecking(false);
+      }
+    };
+    void verifyReturn();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -272,13 +335,11 @@ export default function ParkingSubscription() {
         // Формирование и отправка кассового чека не должны блокировать возврат.
         if (!response.ok || !payload.paid) return;
 
-        const returnUrl = new URL("/parking-subscription", window.location.origin);
-        returnUrl.searchParams.set("payment", "success");
-        if (dealId) returnUrl.searchParams.set("dealId", String(dealId));
-        if (!navigatePaymentWindow(paymentTabRef.current, returnUrl.toString())) {
-          window.open(returnUrl.toString(), PAYMENT_WINDOW_NAME);
+        if (paymentTabRef.current && !paymentTabRef.current.closed) {
+          paymentTabRef.current.close();
         }
         paymentTabRef.current = null;
+        window.focus();
         setPaymentWaiting(false);
         setPaymentExpiresAt(0);
         setPaymentError(false);
@@ -467,7 +528,14 @@ export default function ParkingSubscription() {
       </header>
 
       <main className={styles.main}>
-        {purchased ? (
+        {returnChecking ? (
+          <section className={styles.successCard} aria-live="polite">
+            <div className={styles.checkingIcon} aria-hidden="true">…</div>
+            <p className={styles.eyebrow}>Проверяем оплату</p>
+            <h1>Проверяем результат</h1>
+            <p>Это займёт несколько секунд.</p>
+          </section>
+        ) : purchased ? (
           <section className={styles.successCard}>
             <div className={styles.successIcon} aria-hidden="true">✓</div>
             <p className={styles.eyebrow}>Оплата подтверждена</p>
@@ -484,6 +552,10 @@ export default function ParkingSubscription() {
                 <strong>{formatPrice(BASE_PRICE)}</strong>
               </p>
             </div>
+
+            {returnMessage && (
+              <div className={styles.returnNotice} role="alert">{returnMessage}</div>
+            )}
 
             <section className={styles.instructions} aria-labelledby="buyer-instructions">
               <h2 id="buyer-instructions">Как оформить абонемент</h2>
