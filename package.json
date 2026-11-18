@@ -1,6 +1,6 @@
 {
   "name": "luzhniki-parking-subscription",
-  "version": "1.0.0",
+  "version": "7.0.0",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
@@ -11,7 +11,7 @@
     "start": "vinext start",
     "test:dates": "node --experimental-strip-types --test tests/parking-dates.test.mjs",
     "test:return": "node --experimental-strip-types --test tests/parking-return.test.mjs",
-    "test": "node --experimental-strip-types --test tests/parking-dates.test.mjs tests/parking-return.test.mjs"
+    "test": "node --experimental-strip-types --test tests/parking-dates.test.mjs tests/parking-return.test.mjs tests/subscription-fine-check.test.mjs"
   },
   "dependencies": {
     "next": "16.2.11",

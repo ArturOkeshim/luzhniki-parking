@@ -1,8 +1,11 @@
-PARKING-SUBSCRIPTION-SERVER-V6.9-FULL-FILES-2026-10-14
-Дата: 14.10.2026
+PARKING-SUBSCRIPTION-SERVER-V7.0-FINES-CHECK-2026-11-12
+Дата: 12.11.2026
 Тип: полный каталог сайта без установщиков
 Целевой каталог: /opt/luzhniki-parking-subscription/app
 Конфигурация с ключами: .env
 Резервная копия конфигурации: SERVER-CONFIG-WITH-KEYS.env
 Штатная страница оплаты: https://pay.luzhniki.ru/oformleniezakaza/
+Сайт оплаты штрафов: https://testnpp.luzh-dev.ru/
+Проверка штрафов: только чтение по российскому ГРН
+Ввод ГРН: кириллица, латиница или смешанный ввод с приведением к кириллице
 Автоматические установщики: отсутствуют

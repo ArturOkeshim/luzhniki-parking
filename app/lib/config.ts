@@ -39,6 +39,15 @@ export const bitrixConfig = {
   get paymentPublicHost() {
     return runtimeValue("B24_PAYMENT_PUBLIC_HOST", "pay.luzhniki.ru").toLowerCase();
   },
+  get entityTypeId() {
+    return Number(runtimeValue("B24_ENTITY_TYPE_ID", "1112"));
+  },
+  get finesCategoryId() {
+    return Number(runtimeValue("B24_FINES_CATEGORY_ID", "71"));
+  },
+  get finesPaymentUrl() {
+    return runtimeValue("FINES_PAYMENT_URL", "https://testnpp.luzh-dev.ru/");
+  },
   get parkingCategoryId() {
     return Number(runtimeValue("B24_PARKING_CATEGORY_ID", "40"));
   },

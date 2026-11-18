@@ -2,7 +2,11 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { formatForeignPlateInput, formatRussianPlateInput } from "@/app/lib/parking-plate";
+import {
+  formatForeignPlateInput,
+  formatRussianPlateInput,
+  isRussianPlateValid,
+} from "@/app/lib/parking-plate";
 import { formatRussianPhoneInput } from "@/app/lib/phone";
 import { addIsoDays } from "@/app/lib/parking-dates";
 import { isParkingTariffId, PARKING_TARIFFS, ParkingTariffId } from "@/app/lib/parking-tariffs";
@@ -25,6 +29,21 @@ type OrderResponse = {
   pending?: boolean;
   price?: number;
   error?: string;
+};
+
+type FineCheckResponse = {
+  hasOutstandingFines?: boolean;
+  outstandingCount?: number;
+  total?: number;
+  paymentPageUrl?: string;
+  error?: string;
+};
+
+type FineCheckState = {
+  status: "idle" | "checking" | "clear" | "found" | "error";
+  outstandingCount: number;
+  total: number;
+  paymentPageUrl: string;
 };
 
 type CalendarWindow = {
@@ -118,6 +137,12 @@ export default function ParkingSubscription() {
   const [phone, setPhone] = useState("");
   const [plate, setPlate] = useState("");
   const [foreignPlate, setForeignPlate] = useState(false);
+  const [fineCheck, setFineCheck] = useState<FineCheckState>({
+    status: "idle",
+    outstandingCount: 0,
+    total: 0,
+    paymentPageUrl: "",
+  });
   const [personalDataConsent, setPersonalDataConsent] = useState(false);
   const [offerAccepted, setOfferAccepted] = useState(false);
   const [marketingConsent, setMarketingConsent] = useState(false);
@@ -139,6 +164,43 @@ export default function ParkingSubscription() {
     [startDate, selectedTariff.durationDays],
   );
   const limitedTariff = selectedTariff.limitHours !== null;
+
+  useEffect(() => {
+    if (foreignPlate || !isRussianPlateValid(plate)) {
+      setFineCheck({ status: "idle", outstandingCount: 0, total: 0, paymentPageUrl: "" });
+      return;
+    }
+
+    setFineCheck({ status: "checking", outstandingCount: 0, total: 0, paymentPageUrl: "" });
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `/api/parking-subscription/fines?plate=${encodeURIComponent(plate)}`,
+          { cache: "no-store", signal: controller.signal },
+        );
+        const payload = (await response.json()) as FineCheckResponse;
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Не удалось проверить штрафы.");
+        }
+
+        setFineCheck({
+          status: payload.hasOutstandingFines ? "found" : "clear",
+          outstandingCount: Math.max(0, payload.outstandingCount ?? 0),
+          total: Math.max(0, payload.total ?? 0),
+          paymentPageUrl: payload.paymentPageUrl ?? "",
+        });
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setFineCheck({ status: "error", outstandingCount: 0, total: 0, paymentPageUrl: "" });
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [foreignPlate, plate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -460,6 +522,16 @@ export default function ParkingSubscription() {
 
   async function submitOrder(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (fineCheck.status === "checking") {
+      setPaymentError(true);
+      setPaymentMessage("Дождитесь завершения проверки автомобиля на наличие штрафов.");
+      return;
+    }
+    if (fineCheck.status === "found") {
+      setPaymentError(true);
+      setPaymentMessage("Перед оформлением абонемента оплатите найденные штрафы.");
+      return;
+    }
     if (!personalDataConsent || !offerAccepted) {
       setPaymentError(true);
       setPaymentMessage("Подтвердите согласие на обработку персональных данных и принятие публичной оферты.");
@@ -607,22 +679,29 @@ export default function ParkingSubscription() {
                       value={plate}
                       onChange={(event) => {
                         event.currentTarget.setCustomValidity("");
-                        setPlate(foreignPlate
+                        const nextPlate = foreignPlate
                           ? formatForeignPlateInput(event.currentTarget.value)
-                          : formatRussianPlateInput(event.currentTarget.value));
+                          : formatRussianPlateInput(event.currentTarget.value);
+                        setPlate(nextPlate);
+                        setFineCheck({
+                          status: !foreignPlate && isRussianPlateValid(nextPlate) ? "checking" : "idle",
+                          outstandingCount: 0,
+                          total: 0,
+                          paymentPageUrl: "",
+                        });
                       }}
                       onInvalid={(event) => event.currentTarget.setCustomValidity(foreignPlate
                         ? "Введите номер без пробелов."
-                        : "Введите российский госномер в формате А000АА77 или А000АА777.")}
+                        : "Введите госномер в формате А000АА77 или А000АА777. Буквы можно вводить русскими или английскими.")}
                       placeholder={foreignPlate ? "ABC1234" : "А000АА77"}
-                      pattern={foreignPlate ? "\\S+" : "[АВЕКМНОРСТУХ][0-9]{3}[АВЕКМНОРСТУХ]{2}[0-9]{2,3}"}
+                      pattern={foreignPlate ? "\\S+" : "[АВЕКМНОРСТУХABEKMHOPCTYXabekmhopctyx][0-9]{3}[АВЕКМНОРСТУХABEKMHOPCTYXabekmhopctyx]{2}[0-9]{2,3}"}
                       minLength={foreignPlate ? 1 : 8}
                       maxLength={foreignPlate ? 32 : 9}
                       aria-describedby="plate-format-hint"
                       required
                     />
                     <small id="plate-format-hint" className={styles.plateHint}>
-                      {foreignPlate ? "Без пробелов. Все символы переводятся в верхний регистр." : "Формат: А000АА77 или А000АА777"}
+                      {foreignPlate ? "Без пробелов. Все символы переводятся в верхний регистр." : "Формат: А000АА77 или А000АА777. Буквы можно вводить русскими или английскими."}
                     </small>
                     <span className={styles.foreignPlateOption}>
                       <input
@@ -632,11 +711,54 @@ export default function ParkingSubscription() {
                           const enabled = event.target.checked;
                           setForeignPlate(enabled);
                           setPlate(enabled ? formatForeignPlateInput(plate) : formatRussianPlateInput(plate));
+                          setFineCheck({ status: "idle", outstandingCount: 0, total: 0, paymentPageUrl: "" });
                         }}
                       />
                       Иностранный номер
                     </span>
                   </label>
+                  {!foreignPlate && fineCheck.status !== "idle" && (
+                    <div
+                      className={`${styles.fineCheck} ${
+                        fineCheck.status === "found"
+                          ? styles.fineCheckFound
+                          : fineCheck.status === "clear"
+                            ? styles.fineCheckClear
+                            : fineCheck.status === "error"
+                              ? styles.fineCheckError
+                              : styles.fineCheckChecking
+                      }`}
+                      role={fineCheck.status === "found" ? "alert" : "status"}
+                      aria-live="polite"
+                    >
+                      {fineCheck.status === "checking" && (
+                        <span>Проверяем наличие неоплаченных штрафов…</span>
+                      )}
+                      {fineCheck.status === "clear" && (
+                        <span>Неоплаченных штрафов по автомобилю не найдено.</span>
+                      )}
+                      {fineCheck.status === "error" && (
+                        <span>Не удалось проверить штрафы. Оформление абонемента остаётся доступно.</span>
+                      )}
+                      {fineCheck.status === "found" && (
+                        <>
+                          <strong>
+                            {fineCheck.outstandingCount === 1
+                              ? "Найден неоплаченный штраф"
+                              : `Найдено неоплаченных штрафов: ${fineCheck.outstandingCount}`}
+                          </strong>
+                          {fineCheck.total > 0 && (
+                            <span>Общая сумма: {formatPrice(fineCheck.total)}.</span>
+                          )}
+                          {fineCheck.paymentPageUrl && (
+                            <a className={styles.fineCheckButton} href={fineCheck.paymentPageUrl}>
+                              Перейти к оплате штрафов
+                            </a>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -836,9 +958,26 @@ export default function ParkingSubscription() {
                 <button
                   className={styles.buyButton}
                   type="submit"
-                  disabled={loading || paymentWaiting || !calendarWindow || !startDate || !personalDataConsent || !offerAccepted}
+                  disabled={
+                    loading ||
+                    paymentWaiting ||
+                    fineCheck.status === "checking" ||
+                    fineCheck.status === "found" ||
+                    !calendarWindow ||
+                    !startDate ||
+                    !personalDataConsent ||
+                    !offerAccepted
+                  }
                 >
-                  {loading ? "Готовим оплату…" : paymentWaiting ? "Ожидаем оплату…" : `Перейти к оплате · ${formatPrice(price)}`}
+                  {loading
+                    ? "Готовим оплату…"
+                    : paymentWaiting
+                      ? "Ожидаем оплату…"
+                      : fineCheck.status === "checking"
+                        ? "Проверяем штрафы…"
+                        : fineCheck.status === "found"
+                          ? "Сначала оплатите штрафы"
+                          : `Перейти к оплате · ${formatPrice(price)}`}
                 </button>
               </div>
             </form>

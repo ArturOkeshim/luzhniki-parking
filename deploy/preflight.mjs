@@ -21,6 +21,20 @@ if (apiUrl.protocol !== "https:") {
   process.exit(1);
 }
 
+const finesPaymentUrl = new URL(process.env.FINES_PAYMENT_URL ?? "");
+if (finesPaymentUrl.protocol !== "https:") {
+  console.error("FINES_PAYMENT_URL должен использовать HTTPS.");
+  process.exit(1);
+}
+
+for (const name of ["B24_ENTITY_TYPE_ID", "B24_FINES_CATEGORY_ID"]) {
+  const value = Number(process.env[name]);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    console.error(`${name} должен содержать положительный целочисленный ID.`);
+    process.exit(1);
+  }
+}
+
 const webhookUrl = new URL(process.env.B24_WEBHOOK_URL);
 if (
   webhookUrl.protocol !== "https:" ||
